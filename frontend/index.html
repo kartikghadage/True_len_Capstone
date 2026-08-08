@@ -15,7 +15,20 @@
         <div><div class="brand-name">TruthLens</div><div class="brand-tag">AI Fact Verification</div></div></div>
       <button id="newChatBtn" class="new-chat"><span>+</span> New Verification</button>
 
-      <!-- Chat history (recent) -->
+      <!-- search -->
+      <div class="hist-search">
+        <span class="hs-ic">🔍</span>
+        <input id="histSearch" type="text" placeholder="Search chats…" />
+      </div>
+      <!-- verdict filter chips -->
+      <div class="hist-filters" id="histFilters">
+        <button class="fchip active" data-f="">All</button>
+        <button class="fchip" data-f="Fake">Fake</button>
+        <button class="fchip" data-f="Real">Real</button>
+        <button class="fchip" data-f="Manipulated">Edited</button>
+        <button class="fchip" data-f="review">⚠ Review</button>
+      </div>
+
       <div class="side-section history-section">
         <div class="side-title">Recent</div>
         <div id="historyList" class="history-list"><div class="history-empty">No past checks yet</div></div>
@@ -31,10 +44,7 @@
           <span class="legend-item"><i class="dot v-Inconclusive"></i>Inconclusive</span>
         </div>
       </div>
-      <div class="side-footer">
-        <a class="metrics-link" href="/metrics" target="_blank">📊 Metrics</a>
-        <span id="llmStatus" class="llm-status">checking…</span>
-      </div>
+      <div class="side-footer"><a class="metrics-link" href="/metrics" target="_blank">📊 Metrics</a><span id="llmStatus" class="llm-status">checking…</span></div>
     </aside>
 
     <main class="chat">
@@ -46,8 +56,8 @@
       <div id="messages" class="messages">
         <div class="msg bot"><div class="avatar">🔍</div>
           <div class="bubble"><b>Welcome to TruthLens.</b><br />
-            Submit any claim as <b>text</b>, record/upload a <b>voice note</b>, or an <b>image</b>. For images I also
-            run <b>forensics</b> (ELA + EXIF + CNN) to detect editing. Past checks appear under <b>Recent</b>.
+            Submit any claim as <b>text</b>, record/upload a <b>voice note</b>, or an <b>image</b>. Past checks appear
+            under <b>Recent</b> — search them, filter by verdict, rename, or delete.
             <div class="examples">
               <span class="chip" data-ex="The Sun rises in the east">The Sun rises in the east</span>
               <span class="chip" data-ex="J.P. Morgan was Indian">J.P. Morgan was Indian</span>

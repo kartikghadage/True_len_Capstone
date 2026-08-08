@@ -1,4 +1,4 @@
-"""TruthLens - Chat Router | Phase 7 (+ chat history) + forgery + Reflection."""
+"""TruthLens - Chat Router | Phase 7 + chat history (rename/delete/filter/search)."""
 import json, asyncio, time
 from fastapi import APIRouter, Form, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -29,8 +29,7 @@ async def _type_out(text, cw=2, delay=0.03):
 
 
 _ASSESS = {"likely_true": "Real", "likely_false": "Fake", "unclear": "Inconclusive"}
-_BRANCH = {"supporting": "Supporting", "contradicting": "Contradicting",
-           "context": "Context", "source_credibility": "Source Credibility"}
+_BRANCH = {"supporting": "Supporting", "contradicting": "Contradicting", "context": "Context", "source_credibility": "Source Credibility"}
 
 
 async def _run_claim(session_id, message, forgery=None, input_type="text"):
@@ -49,8 +48,7 @@ async def _run_claim(session_id, message, forgery=None, input_type="text"):
     yield sse("step", {"stage": "pregrounder", "text": "Running an initial assessment..."})
     pg = await asyncio.to_thread(pregrounder.pre_ground, claim.get("claim_text", ""))
     conf0 = pg.get("initial_confidence", 0.0); risk = pg.get("risk_level", "high")
-    yield sse("step", {"stage": "assess",
-                       "text": f"Initial: {pg.get('initial_assessment')} · confidence {round(conf0*100)}% · risk {risk}"})
+    yield sse("step", {"stage": "assess", "text": f"Initial: {pg.get('initial_assessment')} · confidence {round(conf0*100)}% · risk {risk}"})
 
     if pg.get("fast_path") and not forgery:
         yield sse("step", {"stage": "fastpath", "text": "High confidence & low risk - fast path."})
@@ -68,18 +66,14 @@ async def _run_claim(session_id, message, forgery=None, input_type="text"):
 
     yield sse("step", {"stage": "context", "text": "Analyzing evidence stance..."})
     ctx = await asyncio.to_thread(context_builder.build_context, claim.get("claim_text", ""), raw)
-    yield sse("step", {"stage": "context_done",
-                       "text": f"Evidence: {ctx['supporting_count']} supporting · {ctx['contradicting_count']} contradicting · {ctx['neutral_count']} neutral"})
+    yield sse("step", {"stage": "context_done", "text": f"Evidence: {ctx['supporting_count']} supporting · {ctx['contradicting_count']} contradicting · {ctx['neutral_count']} neutral"})
 
     yield sse("step", {"stage": "tot", "text": "Tree-of-Thought verification (4 branches)..."})
     final = None
-    gen = verification_graph.tot_steps(claim.get("claim_text", ""), claim.get("search_query", ""),
-                                       ctx["evidence"], pg, forgery=forgery)
-
+    gen = verification_graph.tot_steps(claim.get("claim_text", ""), claim.get("search_query", ""), ctx["evidence"], pg, forgery=forgery)
     def _next(g):
         try: return next(g)
         except StopIteration: return None
-
     while True:
         item = await asyncio.to_thread(_next, gen)
         if item is None: break
@@ -95,18 +89,16 @@ async def _run_claim(session_id, message, forgery=None, input_type="text"):
         elif name == "verdict":
             final = payload
 
-    ev_card = [{"title": e.get("title", ""), "url": e.get("url", ""), "source_type": e.get("source_type", "web"),
-                "snippet": e.get("snippet", ""), "stance": e.get("stance", "neutral")} for e in ctx["evidence"][:5]]
+    ev_card = [{"title": e.get("title", ""), "url": e.get("url", ""), "source_type": e.get("source_type", "web"), "snippet": e.get("snippet", ""), "stance": e.get("stance", "neutral")} for e in ctx["evidence"][:5]]
     for le in (final.get("legal_evidence") or [])[:2]:
         ev_card.append({"title": le.get("title", "Indian Law"), "url": "", "source_type": "legal", "snippet": le.get("snippet", ""), "stance": "neutral"})
-    verdict = {"verdict": final["verdict"], "confidence": final["confidence"], "summary": final["summary"],
-               "evidence": ev_card, "branches": final.get("branches", {}), "is_legal": final.get("is_legal", False),
-               "needs_human_review": final.get("needs_human_review", False), "reflection": final.get("reflection", {}), "forgery": final.get("forgery")}
+    verdict = {"verdict": final["verdict"], "confidence": final["confidence"], "summary": final["summary"], "evidence": ev_card,
+               "branches": final.get("branches", {}), "is_legal": final.get("is_legal", False), "needs_human_review": final.get("needs_human_review", False),
+               "reflection": final.get("reflection", {}), "forgery": final.get("forgery")}
     async for c in _type_out(final["summary"]): yield c
     memory.set_last_verdict(session_id, verdict, claim_text=claim.get("claim_text", ""), input_type=input_type)
     memory.add_message(session_id, "assistant", final["summary"])
-    if config.DB_ENABLED:
-        db.log_stage(session_id, "full_pipeline", (time.time() - _t0) * 1000, "success")
+    if config.DB_ENABLED: db.log_stage(session_id, "full_pipeline", (time.time() - _t0) * 1000, "success")
     yield sse("verdict", verdict); yield sse("done", {})
 
 
@@ -114,8 +106,7 @@ async def pipeline(session_id, message, input_type, file_bytes, filename):
     if not config.llm_ready():
         yield sse("step", {"stage": "config", "text": "Checking configuration..."})
         await asyncio.sleep(0.3)
-        msg = ("No Gemini API key found. Add GEMINI_API_KEY_1..6 to your .env and restart. "
-               "Free keys: https://aistudio.google.com/apikey")
+        msg = ("No Gemini API key found. Add GEMINI_API_KEY_1..6 to your .env and restart.")
         async for c in _type_out(msg): yield c
         yield sse("done", {}); return
 
@@ -137,22 +128,18 @@ async def pipeline(session_id, message, input_type, file_bytes, filename):
         if not res["ok"]:
             async for c in _type_out("Sorry — " + res["error"]): yield c
             yield sse("done", {}); return
-        if res.get("ocr_text"):
-            yield sse("step", {"stage": "ocr", "text": f"OCR text: \"{res['ocr_text'][:70]}\""})
-        if res.get("vision"):
-            yield sse("step", {"stage": "vision", "text": "Vision: " + res["vision"][:90]})
+        if res.get("ocr_text"): yield sse("step", {"stage": "ocr", "text": f"OCR text: \"{res['ocr_text'][:70]}\""})
+        if res.get("vision"): yield sse("step", {"stage": "vision", "text": "Vision: " + res["vision"][:90]})
         fg = res.get("forgery") or {}
         if fg and fg.get("label") != "not_checked":
-            reasons = "; ".join(fg.get("reasons", [])[:2])
-            yield sse("step", {"stage": "forgery", "text": f"Forensics: {fg.get('label')} ({int(fg.get('confidence',0)*100)}%) — {reasons}"})
+            yield sse("step", {"stage": "forgery", "text": f"Forensics: {fg.get('label')} ({int(fg.get('confidence',0)*100)}%) — " + "; ".join(fg.get('reasons', [])[:2])})
         if not res["claim_seed"]:
             if fg.get("label") == "likely_edited":
                 summary = "This image shows signs of editing/manipulation. " + "; ".join(fg.get("reasons", [])[:3])
                 async for c in _type_out(summary): yield c
                 v = {"verdict": "Manipulated", "confidence": fg.get("confidence", 0.6), "summary": summary, "evidence": [], "forgery": fg, "needs_human_review": True}
                 memory.set_last_verdict(session_id, v, claim_text="(image)", input_type="image")
-                memory.add_message(session_id, "assistant", summary)
-                yield sse("verdict", v)
+                memory.add_message(session_id, "assistant", summary); yield sse("verdict", v)
             else:
                 async for c in _type_out("I couldn't read a verifiable claim from this image."): yield c
             yield sse("done", {}); return
@@ -163,50 +150,51 @@ async def pipeline(session_id, message, input_type, file_bytes, filename):
     yield sse("step", {"stage": "router", "text": "Understanding your message..."})
     has_prev = memory.has_verdict(session_id)
     intent = (await asyncio.to_thread(router_agent.route, message, has_prev))["intent"]
-
     if intent == "chat":
         yield sse("step", {"stage": "chat", "text": "Composing a reply..."})
         reply = await asyncio.to_thread(chat_agent.casual_reply, message, memory.get_history(session_id))
         async for c in _type_out(reply): yield c
         memory.add_message(session_id, "assistant", reply); yield sse("done", {}); return
-
     if intent == "follow_up":
         yield sse("step", {"stage": "follow_up", "text": "Looking back at the previous result..."})
         reply = await asyncio.to_thread(chat_agent.follow_up_reply, message, memory.get_last_verdict(session_id))
         async for c in _type_out(reply): yield c
         memory.add_message(session_id, "assistant", reply); yield sse("done", {}); return
-
     async for ev in _run_claim(session_id, message): yield ev
 
 
 @router.post("/chat")
-async def chat(session_id: str = Form(...), message: str = Form(""),
-               input_type: str = Form("text"), file: Optional[UploadFile] = File(None)):
+async def chat(session_id: str = Form(...), message: str = Form(""), input_type: str = Form("text"), file: Optional[UploadFile] = File(None)):
     file_bytes = await file.read() if file is not None else None
     filename = file.filename if file is not None else ""
-    return StreamingResponse(pipeline(session_id, message, input_type, file_bytes, filename),
-                             media_type="text/event-stream")
+    return StreamingResponse(pipeline(session_id, message, input_type, file_bytes, filename), media_type="text/event-stream")
 
 
 @router.post("/reset")
 async def reset(session_id: str = Form(...)):
-    memory.reset(session_id)
-    return {"status": "ok"}
+    memory.reset(session_id); return {"status": "ok"}
 
 
-# ---------------- chat history (NEW) ----------------
+# ---------------- chat history ----------------
 @router.get("/sessions")
-def sessions():
-    """Recent chats for the sidebar."""
-    return {"sessions": db.list_sessions(30)}
+def sessions(verdict: Optional[str] = None, q: Optional[str] = None):
+    """Recent chats with smart titles. Optional ?verdict=Fake|Real|...|review  &  ?q=search"""
+    return {"sessions": db.list_sessions(50, verdict=verdict, query=q)}
 
 
 @router.get("/sessions/{session_id}")
 def session_detail(session_id: str):
-    """Full chat (messages + verdicts) to reopen an old conversation."""
     data = db.get_session_full(session_id)
-    # warm the in-process cache so follow-ups work after reopening
     lv = data["verdicts"][-1] if data["verdicts"] else None
-    if lv:
-        memory.set_last_verdict(session_id, lv)
+    if lv: memory.set_last_verdict(session_id, lv)
     return data
+
+
+@router.post("/sessions/{session_id}/rename")
+async def rename(session_id: str, title: str = Form(...)):
+    db.rename_session(session_id, title); return {"status": "ok", "title": title}
+
+
+@router.delete("/sessions/{session_id}")
+async def delete(session_id: str):
+    db.delete_session(session_id); memory.reset(session_id); return {"status": "ok"}
