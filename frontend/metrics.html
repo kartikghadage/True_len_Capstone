@@ -7,13 +7,15 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   :root{
-    --bg:#f4f5f7;--panel:#fff;--ink:#1a1d21;--muted:#6b7280;--faint:#9aa1ac;
+    --bg:#f4f6f7;--panel:#fff;--ink:#1a2e3b;--muted:#5b6b78;--faint:#7c93a3;
     --brand:#0e9f78;--brand-dk:#0b7f60;--brand-lt:#e6f7f1;--navy:#0f2a3f;
     --border:#e6e8eb;--radius:14px;--shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+    /* dimension colors (match the PPT) */
+    --d-model:#1b6ca8;--d-ops:#0e9f78;--d-biz:#b8862b;--d-gov:#7c3aed;
     --warn:#d97706;
   }
   body{font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1100px;margin:0 auto;padding:22px 24px 60px}
+  .wrap{max-width:1150px;margin:0 auto;padding:22px 24px 60px}
   /* header */
   .top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
   .top .brand{display:flex;align-items:center;gap:12px}
@@ -24,61 +26,63 @@
   .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;border:1px solid var(--border);background:#fff;color:var(--ink)}
   .btn:hover{background:#f3f4f6}
   .btn.primary{background:var(--brand);color:#fff;border:none}.btn.primary:hover{background:var(--brand-dk)}
-  /* section */
-  .section{margin-top:26px}
-  .section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-  .section-head h2{font-size:16px;font-weight:800;color:var(--navy)}
-  .section-head .meta{font-size:12px;color:var(--muted)}
-  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--brand-lt);color:var(--brand-dk);margin-left:8px}
-  /* kpi cards */
+  /* dimension section */
+  .dim{margin-top:22px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .dim-head{display:flex;align-items:center;gap:13px;padding:14px 18px;color:#fff}
+  .dim-head .dim-ic{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:19px;flex-shrink:0}
+  .dim-head .dim-tt{font-size:16.5px;font-weight:800;letter-spacing:.3px}
+  .dim-head .dim-q{font-size:12px;opacity:.9;margin-top:1px}
+  .dim-head .dim-meta{margin-left:auto;font-size:11.5px;opacity:.9;text-align:right}
+  .d-model .dim-head{background:var(--d-model)}
+  .d-ops   .dim-head{background:var(--d-ops)}
+  .d-biz   .dim-head{background:var(--d-biz)}
+  .d-gov   .dim-head{background:var(--d-gov)}
+  .dim-body{padding:16px 18px}
+  /* grids */
   .grid{display:grid;gap:14px}
-  .grid.k4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-  .grid.k5{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
-  .grid.k2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
-  .kpi .label{font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:8px}
-  .kpi .value{font-size:30px;font-weight:800;color:var(--navy);line-height:1}
-  .kpi .value.brand{color:var(--brand)}
-  .kpi .foot{font-size:11.5px;color:var(--faint);margin-top:6px}
-  /* ragas cards */
-  .ragas-card{background:#fcfcfd;border:1px solid #eef0f2;border-radius:12px;padding:15px}
-  .ragas-card .label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:7px}
-  .ragas-card .value{font-size:30px;font-weight:800;color:var(--brand);line-height:1}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .g5{grid-template-columns:repeat(auto-fit,minmax(175px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  /* kpi tile */
+  .tile{border:1px solid #eef0f2;border-radius:12px;padding:14px;background:#fcfcfd}
+  .tile .t-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:7px}
+  .tile .t-value{font-size:28px;font-weight:800;line-height:1;color:var(--navy)}
+  .tile .t-foot{font-size:11px;color:var(--faint);margin-top:6px}
+  /* ragas tiles use accent + bar */
+  .r-tile .t-value{color:var(--brand)}
   .bar{height:7px;background:#eceef1;border-radius:999px;overflow:hidden;margin-top:10px}
   .fill{height:100%;border-radius:999px;background:var(--brand);transition:width .5s ease}
-  .ragas-card.warn .value{color:var(--warn)}.ragas-card.warn .fill{background:var(--warn)}
-  .ragas-card.overall{background:var(--navy);border:none}
-  .ragas-card.overall .label{color:#9fb6c7}.ragas-card.overall .value{color:#5eead4}
-  .ragas-card.overall .bar{background:#1d3d54}.ragas-card.overall .fill{background:#5eead4}
+  .r-tile.warn .t-value{color:var(--warn)}.r-tile.warn .fill{background:var(--warn)}
+  .r-tile.overall{background:var(--navy);border:none}
+  .r-tile.overall .t-label{color:#9fb6c7}.r-tile.overall .t-value{color:#5eead4}
+  .r-tile.overall .bar{background:#1d3d54}.r-tile.overall .fill{background:#5eead4}
   /* distribution bars */
-  .dist-row{display:flex;align-items:center;gap:12px;margin-bottom:11px}
-  .dist-name{width:120px;flex-shrink:0;font-size:13px;font-weight:600;color:#374151}
-  .dist-track{flex:1;height:22px;background:#f1f3f5;border-radius:7px;overflow:hidden;position:relative}
+  .dist-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .dist-name{width:118px;flex-shrink:0;font-size:13px;font-weight:600;color:#374151}
+  .dist-track{flex:1;height:22px;background:#f1f3f5;border-radius:7px;overflow:hidden}
   .dist-bar{height:100%;border-radius:7px;display:flex;align-items:center;padding:0 8px;color:#fff;font-size:11.5px;font-weight:700;min-width:26px;transition:width .5s ease}
   .v-Real{background:#16a34a}.v-Fake{background:#dc2626}.v-Misleading{background:#d97706}
   .v-Manipulated{background:#7c3aed}.v-Inconclusive{background:#6b7280}
   .v-text{background:#0e9f78}.v-image{background:#2563eb}.v-audio{background:#7c3aed}
   .stage-bar{background:#0e9f78}
-  /* mini stat pills */
-  .pills{display:flex;flex-wrap:wrap;gap:10px}
-  .pill{display:flex;flex-direction:column;gap:2px;background:#fff;border:1px solid var(--border);border-radius:11px;padding:11px 14px;min-width:150px}
-  .pill .p-label{font-size:11.5px;color:var(--muted);font-weight:600}
-  .pill .p-value{font-size:19px;font-weight:800;color:var(--navy)}
-  .empty{color:var(--muted);font-size:13px;padding:10px 2px}
-  .banner{background:#fff7ed;border:1px solid #f5c98b;border-radius:12px;padding:12px 15px;font-size:13px;color:#7c4a03;margin-top:10px}
-  .footnote{margin-top:34px;text-align:center;font-size:11.5px;color:var(--faint)}
+  .sub-title{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:2px 0 10px}
+  .empty{color:var(--muted);font-size:13px;padding:8px 2px}
+  .banner{background:#fff7ed;border:1px solid #f5c98b;border-radius:12px;padding:12px 15px;font-size:13px;color:#7c4a03;margin-top:6px}
+  .footnote{margin-top:30px;text-align:center;font-size:11.5px;color:var(--faint)}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:720px){.cols2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <!-- ===== Header ===== -->
+  <!-- Header -->
   <div class="top">
     <div class="brand">
       <div class="logo">🔍</div>
       <div>
         <h1>TruthLens — Metrics Dashboard</h1>
-        <div class="sub">Operational metrics from SQLite &nbsp;·&nbsp; RAGAS evaluation scores</div>
+        <div class="sub">Organised along 4 KPI dimensions &nbsp;·&nbsp; live from SQLite + RAGAS</div>
       </div>
     </div>
     <div class="actions">
@@ -87,52 +91,90 @@
     </div>
   </div>
 
-  <!-- ===== KPI row (SQLite) ===== -->
-  <div class="section">
-    <div class="section-head"><h2>Overview <span class="tag">SQLite</span></h2>
-      <span class="meta" id="ovMeta"></span></div>
-    <div class="grid k4" id="kpiRow"><div class="empty">Loading…</div></div>
-  </div>
-
-  <!-- ===== RAGAS ===== -->
-  <div class="section">
-    <div class="section-head">
-      <h2>🧪 RAGAS Evaluation <span class="tag">Gemini-judged</span></h2>
-      <span class="meta" id="ragasMeta">loading…</span>
+  <!-- 1 · MODEL DIAGNOSTICS -->
+  <section class="dim d-model">
+    <div class="dim-head">
+      <div class="dim-ic">🧪</div>
+      <div>
+        <div class="dim-tt">1 · Model Diagnostics</div>
+        <div class="dim-q">How accurate & grounded is the model?</div>
+      </div>
+      <div class="dim-meta" id="modelMeta">loading…</div>
     </div>
-    <div class="grid k5" id="ragasRow"><div class="empty">Loading RAGAS scores…</div></div>
-    <div id="ragasBanner"></div>
-  </div>
-
-  <!-- ===== Verdict + Input distribution ===== -->
-  <div class="section">
-    <div class="grid k2">
-      <div class="card">
-        <div class="section-head"><h2>Verdict Distribution</h2></div>
-        <div id="verdictDist"><div class="empty">Loading…</div></div>
-      </div>
-      <div class="card">
-        <div class="section-head"><h2>Input Types</h2></div>
-        <div id="inputDist"><div class="empty">Loading…</div></div>
-      </div>
+    <div class="dim-body">
+      <div class="sub-title">RAGAS Evaluation (Retrieval Augmented Generation Assessment · Gemini-judged)</div>
+      <div class="grid g5" id="ragasRow"><div class="empty">Loading RAGAS scores…</div></div>
+      <div id="ragasBanner"></div>
+      <div class="sub-title" style="margin-top:16px">Model confidence</div>
+      <div class="grid g4" id="modelConf"><div class="empty">Loading…</div></div>
     </div>
-  </div>
+  </section>
 
-  <!-- ===== Governance + Latency ===== -->
-  <div class="section">
-    <div class="grid k2">
-      <div class="card">
-        <div class="section-head"><h2>Governance</h2></div>
-        <div class="pills" id="govPills"><div class="empty">Loading…</div></div>
+  <!-- 2 · OPERATIONAL DIAGNOSTICS -->
+  <section class="dim d-ops">
+    <div class="dim-head">
+      <div class="dim-ic">⚙️</div>
+      <div>
+        <div class="dim-tt">2 · Operational Diagnostics</div>
+        <div class="dim-q">How fast & reliable is the system?</div>
       </div>
-      <div class="card">
-        <div class="section-head"><h2>Avg Latency per Stage (ms)</h2></div>
-        <div id="latency"><div class="empty">Loading…</div></div>
+      <div class="dim-meta" id="opsMeta"></div>
+    </div>
+    <div class="dim-body">
+      <div class="cols2">
+        <div>
+          <div class="sub-title">Reliability</div>
+          <div class="grid g2" id="opsKpi"><div class="empty">Loading…</div></div>
+        </div>
+        <div>
+          <div class="sub-title">Avg latency per stage (ms)</div>
+          <div id="latency"><div class="empty">Loading…</div></div>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="footnote">TruthLens · Phase 7 &nbsp;·&nbsp; Team Transformers &nbsp;·&nbsp; RAGAS runs via <code>python evaluation/evaluate.py</code></div>
+  <!-- 3 · BUSINESS KPIs -->
+  <section class="dim d-biz">
+    <div class="dim-head">
+      <div class="dim-ic">📈</div>
+      <div>
+        <div class="dim-tt">3 · Business KPIs</div>
+        <div class="dim-q">How much is it used, and what verdicts?</div>
+      </div>
+      <div class="dim-meta" id="bizMeta"></div>
+    </div>
+    <div class="dim-body">
+      <div class="grid g4" id="bizKpi" style="margin-bottom:16px"><div class="empty">Loading…</div></div>
+      <div class="cols2">
+        <div>
+          <div class="sub-title">Verdict distribution</div>
+          <div id="verdictDist"><div class="empty">Loading…</div></div>
+        </div>
+        <div>
+          <div class="sub-title">Input types</div>
+          <div id="inputDist"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · GOVERNANCE KPIs -->
+  <section class="dim d-gov">
+    <div class="dim-head">
+      <div class="dim-ic">🛡️</div>
+      <div>
+        <div class="dim-tt">4 · Governance KPIs</div>
+        <div class="dim-q">Is it safe, legal & overseen?</div>
+      </div>
+      <div class="dim-meta" id="govMeta"></div>
+    </div>
+    <div class="dim-body">
+      <div class="grid g4" id="govKpi"><div class="empty">Loading…</div></div>
+    </div>
+  </section>
+
+  <div class="footnote">TruthLens by&nbsp;·&nbsp; Team Transformers &nbsp;·&nbsp; </code></div>
 </div>
 
 <script>
@@ -140,61 +182,17 @@ const $ = id => document.getElementById(id);
 const pct = v => Math.round((v || 0) * 100);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-// ---------- SQLite metrics ----------
-async function loadMetrics() {
-  try {
-    const m = await (await fetch("/api/v1/metrics")).json();
-    if (!m.enabled) {
-      $("kpiRow").innerHTML = `<div class="empty">Metrics/DB disabled (DB_ENABLED=false).</div>`;
-      return;
-    }
-    $("ovMeta").textContent = `success rate ${pct(m.success_rate)}%`;
-
-    // KPI cards
-    $("kpiRow").innerHTML = [
-      ["Total Checks", m.total_checks ?? 0, "", false],
-      ["Avg Confidence", (m.avg_confidence ?? 0).toFixed(2), "across all verdicts", true],
-      ["Success Rate", pct(m.success_rate) + "%", "pipeline stages", false],
-      ["Human-Review Rate", pct(m.human_review_rate) + "%", "flagged high-impact", false],
-    ].map(([l, v, f, brand]) => `
-      <div class="card kpi">
-        <div class="label">${l}</div>
-        <div class="value ${brand ? "brand" : ""}">${v}</div>
-        ${f ? `<div class="foot">${f}</div>` : ""}
-      </div>`).join("");
-
-    // Verdict distribution
-    renderDist("verdictDist", m.by_verdict, ["Real","Fake","Misleading","Manipulated","Inconclusive"], v => "v-" + v);
-    // Input distribution
-    renderDist("inputDist", m.by_input, null, v => "v-" + v);
-
-    // Governance pills
-    $("govPills").innerHTML = [
-      ["Legal Claims", m.legal_claims ?? 0],
-      ["Manipulated Detected", m.manipulated_detected ?? 0],
-      ["Human-Review", pct(m.human_review_rate) + "%"],
-      ["Total Checks", m.total_checks ?? 0],
-    ].map(([l, v]) => `<div class="pill"><span class="p-label">${l}</span><span class="p-value">${v}</span></div>`).join("");
-
-    // Latency per stage
-    const stages = m.avg_latency_ms_per_stage || {};
-    const keys = Object.keys(stages);
-    if (!keys.length) { $("latency").innerHTML = `<div class="empty">No stage logs yet.</div>`; return; }
-    const maxMs = Math.max(...keys.map(k => stages[k]), 1);
-    $("latency").innerHTML = keys.map(k => `
-      <div class="dist-row">
-        <div class="dist-name">${esc(k)}</div>
-        <div class="dist-track"><div class="dist-bar stage-bar" style="width:${Math.max((stages[k]/maxMs)*100,6)}%">${stages[k]}</div></div>
-      </div>`).join("");
-  } catch (e) {
-    $("kpiRow").innerHTML = `<div class="empty">⚠️ Could not load metrics.</div>`;
-  }
+function kpiTile(label, value, foot){
+  return `<div class="tile">
+    <div class="t-label">${esc(label)}</div>
+    <div class="t-value">${esc(String(value))}</div>
+    ${foot ? `<div class="t-foot">${esc(foot)}</div>` : ""}
+  </div>`;
 }
 
-function renderDist(elId, obj, order, clsFn) {
+function renderDist(elId, obj, order, clsFn){
   obj = obj || {};
   let keys = order ? order.filter(k => obj[k]) : Object.keys(obj);
-  // include any extra keys not in order
   if (order) Object.keys(obj).forEach(k => { if (!keys.includes(k)) keys.push(k); });
   const total = keys.reduce((s, k) => s + (obj[k] || 0), 0) || 1;
   if (!keys.length) { $(elId).innerHTML = `<div class="empty">No data yet.</div>`; return; }
@@ -207,41 +205,97 @@ function renderDist(elId, obj, order, clsFn) {
   }).join("");
 }
 
-// ---------- RAGAS ----------
-async function loadRagas() {
-  try {
-    const d = await (await fetch("/api/v1/ragas")).json();
-    if (!d.available) {
-      $("ragasMeta").textContent = "";
-      $("ragasRow").innerHTML = `<div class="empty">${esc(d.reason || "No evaluation run yet.")}</div>`;
-      $("ragasBanner").innerHTML = `<div class="banner">Run <code>python evaluation/evaluate.py</code> to generate RAGAS scores — they will appear here automatically.</div>`;
-      return;
+// ---------- Single endpoint: SQLite metrics + RAGAS ----------
+async function loadAll(){
+  let m;
+  try{
+    m = await (await fetch("/api/v1/metrics")).json();
+  }catch(e){
+    ["modelConf","opsKpi","bizKpi","govKpi","ragasRow"].forEach(id =>
+      $(id).innerHTML = `<div class="empty">⚠️ Could not load metrics.</div>`);
+    return;
+  }
+  renderRagas(m.ragas || {available:false, reason:"No RAGAS data in response."});
+  if (!m.enabled){
+    ["modelConf","opsKpi","bizKpi","govKpi"].forEach(id =>
+      $(id).innerHTML = `<div class="empty">Metrics/DB disabled (DB_ENABLED=false).</div>`);
+    return;
+  }
+  {
+    // meta labels
+    $("opsMeta").textContent = `success ${pct(m.success_rate)}%`;
+    $("bizMeta").textContent = `${m.total_checks ?? 0} checks`;
+    $("govMeta").textContent = `review ${pct(m.human_review_rate)}%`;
+
+    // MODEL — confidence tile
+    $("modelConf").innerHTML = kpiTile("Avg Confidence", (m.avg_confidence ?? 0).toFixed(2), "mean self-reported confidence across verdicts");
+
+    // OPERATIONAL — reliability tiles
+    $("opsKpi").innerHTML =
+      kpiTile("Success Rate", pct(m.success_rate) + "%", "pipeline stages OK") +
+      kpiTile("Checks Logged", m.total_checks ?? 0, "records in SQLite");
+
+    // OPERATIONAL — latency
+    const stages = m.avg_latency_ms_per_stage || {};
+    const keys = Object.keys(stages);
+    if (!keys.length){ $("latency").innerHTML = `<div class="empty">No stage logs yet.</div>`; }
+    else{
+      const maxMs = Math.max(...keys.map(k => stages[k]), 1);
+      $("latency").innerHTML = keys.map(k => `
+        <div class="dist-row">
+          <div class="dist-name">${esc(k)}</div>
+          <div class="dist-track"><div class="dist-bar stage-bar" style="width:${Math.max((stages[k]/maxMs)*100,6)}%">${stages[k]}</div></div>
+        </div>`).join("");
     }
-    $("ragasMeta").textContent = `engine: ${d.engine} · ${d.samples} samples · ${d.timestamp}`;
-    $("ragasBanner").innerHTML = "";
-    const metrics = [
-      ["Faithfulness", d.faithfulness, false],
-      ["Answer Correctness", d.answer_correctness, false],
-      ["Context Precision@k", d.context_precision, false],
-      ["Context Recall@k", d.context_recall, false],
-      ["Overall", d.overall, true],
-    ];
-    $("ragasRow").innerHTML = metrics.map(([label, val, isOverall]) => {
-      const warn = (val < 0.5 && !isOverall) ? "warn" : "";
-      const cls = isOverall ? "ragas-card overall" : `ragas-card ${warn}`;
-      return `<div class="${cls}">
-        <div class="label">${label}</div>
-        <div class="value">${(val ?? 0).toFixed(2)}</div>
-        <div class="bar"><div class="fill" style="width:${pct(val)}%"></div></div>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    $("ragasMeta").textContent = "";
-    $("ragasRow").innerHTML = `<div class="empty">⚠️ Could not load RAGAS scores.</div>`;
+
+    // BUSINESS — usage tiles
+    const inputs = m.by_input || {};
+    const inputStr = Object.keys(inputs).length ? Object.entries(inputs).map(([k,v]) => `${v} ${k}`).join(" · ") : "—";
+    $("bizKpi").innerHTML =
+      kpiTile("Total Checks", m.total_checks ?? 0, "all verifications") +
+      kpiTile("Input Types", inputStr, "multimodal coverage");
+
+    // BUSINESS — distributions
+    renderDist("verdictDist", m.by_verdict, ["Real","Fake","Misleading","Manipulated","Inconclusive"], v => "v-" + v);
+    renderDist("inputDist", m.by_input, null, v => "v-" + v);
+
+    // GOVERNANCE — safety tiles
+    $("govKpi").innerHTML =
+      kpiTile("Human-Review Rate", pct(m.human_review_rate) + "%", "high-impact flagged") +
+      kpiTile("Legal Claims", m.legal_claims ?? 0, "BNS/Constitution grounded") +
+      kpiTile("Manipulated Detected", m.manipulated_detected ?? 0, "image forgery") +
+      kpiTile("Total Checks", m.total_checks ?? 0, "governed volume");
   }
 }
 
-function loadAll() { loadMetrics(); loadRagas(); }
+// ---------- RAGAS (from m.ragas, same payload) ----------
+function renderRagas(d){
+  if (!d || !d.available){
+    $("modelMeta").textContent = "no evaluation yet";
+    $("ragasRow").innerHTML = `<div class="empty">${esc((d && d.reason) || "No evaluation run yet.")}</div>`;
+    $("ragasBanner").innerHTML = `<div class="banner">Run <code>python evaluation/evaluate.py</code> to generate RAGAS scores — they appear here automatically.</div>`;
+    return;
+  }
+  $("modelMeta").textContent = `${d.engine} · ${d.samples} samples · ${d.timestamp}`;
+  $("ragasBanner").innerHTML = "";
+  const metrics = [
+    ["Faithfulness", d.faithfulness, false],
+    ["Answer Correctness", d.answer_correctness, false],
+    ["Context Precision@k", d.context_precision, false],
+    ["Context Recall@k", d.context_recall, false],
+    ["Overall", d.overall, true],
+  ];
+  $("ragasRow").innerHTML = metrics.map(([label, val, isOverall]) => {
+    const warn = (val < 0.7 && !isOverall) ? "warn" : "";
+    const cls = isOverall ? "tile r-tile overall" : `tile r-tile ${warn}`;
+    return `<div class="${cls}">
+      <div class="t-label">${label}</div>
+      <div class="t-value">${(val ?? 0).toFixed(2)}</div>
+      <div class="bar"><div class="fill" style="width:${pct(val)}%"></div></div>
+    </div>`;
+  }).join("");
+}
+
 $("refreshBtn").addEventListener("click", loadAll);
 loadAll();
 </script>
