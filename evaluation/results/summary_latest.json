@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-08-09 19:33:46",
+  "engine": "gemini-judge",
+  "samples": 24,
+  "faithfulness": 0.6782,
+  "answer_correctness": 0.7579,
+  "context_precision": 1.0,
+  "context_recall": 0.7403,
+  "overall": 0.7941,
+  "status_breakdown": {
+    "pass": 18,
+    "partial": 5,
+    "fail": 1
+  }
+}

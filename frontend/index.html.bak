@@ -44,7 +44,7 @@
           <span class="legend-item"><i class="dot v-Inconclusive"></i>Inconclusive</span>
         </div>
       </div>
-      <div class="side-footer"><a class="metrics-link" href="/metrics">📊 Metrics</a><span id="llmStatus" class="llm-status">checking…</span></div>
+      <div class="side-footer"><a class="metrics-link" href="/metrics" target="_blank">📊 Metrics</a><span id="llmStatus" class="llm-status">checking…</span></div>
     </aside>
 
     <main class="chat">

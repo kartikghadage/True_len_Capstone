@@ -1,4 +1,32 @@
 from __future__ import annotations
+# ==========================================================================
+#  PATH BOOTSTRAP (must run BEFORE any `from backend ...` import)
+#  Makes the project root importable so `backend` is always found,
+#  whether you run:  python evaluate.py   (from inside evaluation/)
+#                or:  python evaluation/evaluate.py   (from project root)
+# ==========================================================================
+import os
+import sys
+from pathlib import Path
+
+
+def _add_project_root_to_path() -> None:
+    here = Path(__file__).resolve()
+    # walk upward until we find a folder that contains a "backend" package
+    for parent in [here.parent] + list(here.parents):
+        if (parent / "backend").is_dir():
+            if str(parent) not in sys.path:
+                sys.path.insert(0, str(parent))
+            return
+    # fallback: assume parent-of-parent (evaluation/ -> project root)
+    root = here.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+
+
+_add_project_root_to_path()
+# ==========================================================================
+
 """
 TruthLens — RAGAS-style Evaluation (Gemini-judged)
 ==================================================
@@ -20,24 +48,29 @@ Metrics (each 0..1, judged by Gemini):
 If Gemini is unavailable, it falls back to lightweight lexical metrics so the
 demo never breaks.
 
+Outputs (in evaluation/results/):
+  * evaluation_results_<ts>.csv  — per-question detail
+  * summary_<ts>.json            — aggregate scores (history)
+  * summary_latest.json          — aggregate scores (dashboard reads this)
+
 Setup:  export GEMINI_API_KEY_1="AIza..."   (or put it in ../.env)
 Run:    python3 evaluate.py
 """
 import csv
 import json
-import os
 import re
-import sys
+import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 EVAL_DIR = Path(__file__).resolve().parent
 DATASET_PATH = EVAL_DIR / "evaluation_samples.jsonl"
 RESULTS_DIR = EVAL_DIR / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
+
+# Optional gentle delay between samples to stay under the free-tier rate limit.
+#   export EVAL_DELAY=0.6   (seconds)  -> useful when running 20+ samples
+EVAL_DELAY = float(os.getenv("EVAL_DELAY", "0.0"))
 
 
 # -----------------------------------------------------------------------------
@@ -287,6 +320,8 @@ def evaluate_samples(samples: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                      "faithfulness": round(faith, 4), "answer_correctness": round(corr, 4),
                      "context_precision": round(prec, 4), "context_recall": round(rec, 4),
                      "avg_score": avg, "status": status, "engine": engine})
+        if EVAL_DELAY > 0:
+            time.sleep(EVAL_DELAY)
     return rows
 
 
@@ -299,6 +334,44 @@ def save_results(rows: List[Dict[str, Any]]) -> Path:
     with out.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
     return out
+
+
+def save_summary(rows: List[Dict[str, Any]]) -> Optional[Path]:
+    """Store aggregate scores as JSON so the /metrics dashboard can read them.
+    Writes a timestamped history file AND a stable summary_latest.json."""
+    n = len(rows)
+    if not n:
+        return None
+
+    def avg(k):
+        return round(sum(float(r[k]) for r in rows) / n, 4)
+
+    status_counts: Dict[str, int] = {}
+    for r in rows:
+        status_counts[r["status"]] = status_counts.get(r["status"], 0) + 1
+
+    summary = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "engine": rows[0]["engine"],
+        "samples": n,
+        "faithfulness": avg("faithfulness"),
+        "answer_correctness": avg("answer_correctness"),
+        "context_precision": avg("context_precision"),
+        "context_recall": avg("context_recall"),
+        "overall": avg("avg_score"),
+        "status_breakdown": status_counts,
+    }
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 1) timestamped copy (history)
+    hist = RESULTS_DIR / f"summary_{ts}.json"
+    with hist.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    # 2) latest copy (dashboard always reads this one)
+    latest = RESULTS_DIR / "summary_latest.json"
+    with latest.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    return latest
 
 
 def print_summary(rows: List[Dict[str, Any]]) -> None:
@@ -327,8 +400,11 @@ def main() -> None:
         print("[ERROR] No samples."); return
     rows = evaluate_samples(samples)
     out = save_results(rows)
+    summ = save_summary(rows)
     print_summary(rows)
     print(f"[OK] Results saved to: {out}")
+    if summ:
+        print(f"[OK] Summary saved to: {summ}")
 
 
 if __name__ == "__main__":

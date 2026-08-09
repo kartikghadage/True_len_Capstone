@@ -48,6 +48,11 @@ LEGAL_TRIGGERS = ["anti-national", "antinational", "sedition", "treason",
                   "law says", "against the law", "punishable", "defamation",
                   "hate speech", "contempt"]
 
+# ---------------- LEGAL RAG (MMR retrieval) ----------------
+LEGAL_USE_MMR = True      # True = Maximal Marginal Relevance; False = plain similarity
+LEGAL_FETCH_K = 20        # MMR: candidate pool fetched before re-ranking
+LEGAL_MMR_LAMBDA = 0.5    # 1.0 = pure relevance, 0.0 = max diversity, 0.5 = balanced
+
 # ---------------- MEMORY ----------------
 MEMORY_WINDOW = 10
 
@@ -87,11 +92,16 @@ METRICS_ENABLED = True
 
 # ---------------- PHASE 7: PERSISTENCE / OBSERVABILITY ----------------
 DB_ENABLED = True                 # SQLite persistence (sessions/messages/verdicts/evidence/logs)
-# LangSmith tracing — set these in .env to enable (zero code change):
+
+# RAGAS evaluation summary that the /metrics dashboard reads (written by evaluation/evaluate.py)
+RAGAS_SUMMARY_PATH = "evaluation/results/summary_latest.json"
+
+# LangSmith tracing - set these in .env to enable (zero code change):
 #   LANGCHAIN_TRACING_V2=true
 #   LANGCHAIN_API_KEY=ls__your_key
 #   LANGCHAIN_PROJECT=truthlens
 LANGSMITH_ENABLED = os.getenv("LANGCHAIN_TRACING_V2", "").lower() == "true"
+
 LEGAL_DISCLAIMER = ("Note: This references Indian law (BNS 2023 / Constitution; "
                     "IPC 1860 for older cases) for context only and is not legal advice.")
 
