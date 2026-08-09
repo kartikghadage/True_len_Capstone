@@ -1,24 +1,46 @@
+# ============================================================
+#  TruthLens — requirements.txt  (RAGAS-working, pinned)
+#  KEY FIX: google-generativeai==0.7.2 (newer versions reject
+#  'temperature' inside generate_content() → RAGAS calls fail).
+# ============================================================
+
+# ---- Core app ----
 fastapi
 uvicorn[standard]
 python-multipart
 pydantic
-python-dotenv
-langchain
-langchain-google-genai
-google-generativeai
+dotenv
+
+# ---- LangChain 0.2.x (has vertexai → RAGAS works) ----
+langchain==0.2.16
+langchain-core==0.2.43
+langchain-community==0.2.16
+langchain-text-splitters==0.2.4
+langchain-google-genai==1.0.10
+langgraph==0.2.34
+
+# ---- Gemini SDK (PINNED — this is the temperature fix) ----
+google-generativeai==0.7.2
+
+# ---- Web search (free) ----
 ddgs
 wikipedia
-langgraph
-langchain-core
-pytesseract
-Pillow
-langchain-community
-langchain-chroma
-langchain-huggingface
-langchain-text-splitters
-sentence-transformers
-chromadb
-pypdf
-tensorflow-cpu
-numpy
-openai-whisper
+
+# ---- Legal RAG ----
+langchain-chroma==0.1.4
+langchain-huggingface==0.0.3
+sentence-transformers==3.0.1
+chromadb==0.5.3
+pypdf==4.3.1
+
+# ---- Multimodal ----
+pytesseract==0.3.10
+Pillow==10.4.0
+
+# ---- Forgery CNN ----
+tensorflow==2.17.0
+numpy==1.26.4
+
+# ---- Evaluation — RAGAS ----
+ragas==0.1.21
+datasets==2.20.0

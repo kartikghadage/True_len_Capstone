@@ -27,4 +27,5 @@ def metrics_page():
     return FileResponse(p) if os.path.exists(p) else {"error": "metrics.html not found"}
 @app.get("/")
 def index():return FileResponse(os.path.join(config.FRONTEND_DIR,"index.html"))
+
 app.mount("/static",StaticFiles(directory=config.FRONTEND_DIR),name="static")

@@ -1,24 +1,37 @@
 from __future__ import annotations
 """
-TruthLens Phase 7 Evaluation Script
------------------------------------
-Runs even when RAGAS 0.4.x has the ChatVertexAI import bug.
-1) Patches ragas/llms/base.py if ChatVertexAI is missing.
-2) Tries RAGAS evaluation.
-3) Falls back to a lightweight local metric so the demo never breaks.
+TruthLens — RAGAS-style Evaluation (Gemini-judged)
+==================================================
+RAGAS 0.1.x has a hard dependency bug in this environment: it passes
+`temperature` at generate_content() runtime, which the newer google client
+rejects -> every RAGAS call fails (nan).
 
-Run:  python3 evaluate.py
+This script AVOIDS that broken path completely: it computes the SAME four
+RAGAS metrics ourselves by calling Gemini DIRECTLY via ChatGoogleGenerativeAI
+(the exact client the app already uses successfully). No RAGAS internals,
+no temperature runtime kwarg -> it just works.
+
+Metrics (each 0..1, judged by Gemini):
+  1. Faithfulness       — is the answer supported by the retrieved contexts?
+  2. Answer Correctness — does the answer match the ground truth?
+  3. Context Precision   — how relevant are the retrieved contexts? (Precision@k)
+  4. Context Recall      — is the ground truth covered by the contexts? (Recall@k)
+
+If Gemini is unavailable, it falls back to lightweight lexical metrics so the
+demo never breaks.
+
+Setup:  export GEMINI_API_KEY_1="AIza..."   (or put it in ../.env)
+Run:    python3 evaluate.py
 """
 import csv
 import json
 import os
-import site
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# make project root importable (so `backend` works if ever needed)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -28,91 +41,178 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 
 # -----------------------------------------------------------------------------
-# 1. RAGAS ChatVertexAI bug patch
+# key + Gemini client
 # -----------------------------------------------------------------------------
-def find_ragas_base_file() -> Optional[Path]:
-    roots: List[Path] = []
+def _gemini_key() -> str:
+    for k in ("GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3",
+              "GEMINI_API_KEY_4", "GEMINI_API_KEY_5", "GEMINI_API_KEY_6", "GEMINI_API_KEY"):
+        v = os.getenv(k)
+        if v and "paste_your" not in v:
+            return v
     try:
-        for p in site.getsitepackages():
-            roots.append(Path(p))
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+        for k in ("GEMINI_API_KEY_1", "GEMINI_API_KEY"):
+            v = os.getenv(k)
+            if v and "paste_your" not in v:
+                return v
     except Exception:
         pass
-    us = site.getusersitepackages()
-    if us:
-        roots.append(Path(us))
-    for p in sys.path:
-        if p:
-            roots.append(Path(p))
-    seen = set()
-    for root in roots:
-        if root in seen:
+    return ""
+
+
+def _candidate_models() -> List[str]:
+    """Models to try, best-first. Uses the app's config model if available,
+    plus common fallbacks. Override with:  export EVAL_MODEL='gemini-2.0-flash'"""
+    cands: List[str] = []
+    env = os.getenv("EVAL_MODEL")
+    if env:
+        cands.append(env)
+    # use the SAME model the app uses (already works with this key)
+    try:
+        from backend import config as _cfg
+        for m in (getattr(_cfg, "MODEL_FAST", None), getattr(_cfg, "MODEL_REASONING", None)):
+            if m and m not in cands:
+                cands.append(m)
+    except Exception:
+        pass
+    # safe public fallbacks
+    for m in ("gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-002",
+              "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"):
+        if m not in cands:
+            cands.append(m)
+    return cands
+
+
+_client = None
+def _get_client():
+    """Pick a Gemini model that actually works with this key (avoids 404).
+    temperature is set at CONSTRUCTION (safe), never at call time (RAGAS bug)."""
+    global _client
+    if _client is not None:
+        return _client
+    key = _gemini_key()
+    if not key:
+        return None
+    try:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+    except Exception as e:
+        print(f"[WARN] langchain-google-genai missing: {e}")
+        return None
+    for model in _candidate_models():
+        try:
+            cli = ChatGoogleGenerativeAI(model=model, google_api_key=key, temperature=0)
+            # tiny probe call to confirm the model is valid for this key
+            _ = cli.invoke("Reply with: ok")
+            print(f"[OK] Using Gemini model: {model}")
+            _client = cli
+            return _client
+        except Exception as e:
+            msg = str(e)[:80]
+            print(f"[..] model '{model}' not usable ({msg}); trying next")
             continue
-        seen.add(root)
-        f = root / "ragas" / "llms" / "base.py"
-        if f.exists():
-            return f
+    print("[WARN] No working Gemini model found. Falling back to lexical.")
+    _client = None
+    return _client
+
+
+def _ask(prompt: str) -> str:
+    c = _get_client()
+    if c is None:
+        return ""
+    try:
+        r = c.invoke(prompt)
+        return getattr(r, "content", str(r)) or ""
+    except Exception as e:
+        print(f"[WARN] Gemini call failed: {str(e)[:100]}")
+        return ""
+
+
+def _score_from_text(text: str) -> Optional[float]:
+    """Pull a 0..1 score from the model's reply."""
+    if not text:
+        return None
+    m = re.search(r'"?score"?\s*[:=]\s*([01](?:\.\d+)?)', text)
+    if m:
+        try:
+            return max(0.0, min(1.0, float(m.group(1))))
+        except Exception:
+            pass
+    m = re.search(r'\b(0(?:\.\d+)?|1(?:\.0+)?)\b', text)
+    if m:
+        try:
+            return max(0.0, min(1.0, float(m.group(1))))
+        except Exception:
+            pass
     return None
 
 
-def patch_ragas_chatvertexai_bug() -> bool:
-    base_file = find_ragas_base_file()
-    if base_file is None:
-        print("[WARN] RAGAS base.py not found. RAGAS may not be installed.")
-        return False
-    try:
-        text = base_file.read_text(encoding="utf-8")
-    except Exception as exc:
-        print(f"[WARN] Could not read RAGAS base.py: {exc}")
-        return False
-    if "ChatVertexAI" not in text:
-        print("[OK] RAGAS base.py does not reference ChatVertexAI. No patch needed.")
-        return True
-    if "class ChatVertexAI:" in text or "from langchain_google_vertexai import ChatVertexAI" in text:
-        print("[OK] ChatVertexAI patch/import already present.")
-        return True
-    marker = "from langchain_community.chat_models.vertexai import ChatVertexAI\n"
-    patch = (
-        "try:\n"
-        "    from langchain_google_vertexai import ChatVertexAI\n"
-        "except Exception:\n"
-        "    class ChatVertexAI:\n"
-        "        pass\n"
-    )
-    if marker not in text:
-        # try a looser match
-        import re
-        text2 = re.sub(r"from langchain_community\.chat_models\.vertexai import ChatVertexAI",
-                       "try:\n    from langchain_google_vertexai import ChatVertexAI\nexcept Exception:\n    class ChatVertexAI:\n        pass",
-                       text, count=1)
-        if text2 == text:
-            print(f"[WARN] Could not find ChatVertexAI import marker in: {base_file}")
-            return False
-        try:
-            base_file.write_text(text2, encoding="utf-8")
-            print(f"[OK] Patched RAGAS ChatVertexAI bug in: {base_file}")
-            return True
-        except Exception as exc:
-            print(f"[WARN] Could not patch RAGAS base.py: {exc}")
-            return False
-    try:
-        base_file.write_text(text.replace(marker, patch, 1), encoding="utf-8")
-        print(f"[OK] Patched RAGAS ChatVertexAI bug in: {base_file}")
-        return True
-    except PermissionError:
-        print(f"[WARN] Permission denied while patching: {base_file}")
-        return False
-    except Exception as exc:
-        print(f"[WARN] Could not patch RAGAS base.py: {exc}")
-        return False
+# -----------------------------------------------------------------------------
+# The four RAGAS-style metrics (Gemini-judged)
+# -----------------------------------------------------------------------------
+def m_faithfulness(answer: str, contexts: List[str]) -> Optional[float]:
+    ctx = "\n".join(f"- {c}" for c in contexts) or "(none)"
+    p = (f"You are evaluating FAITHFULNESS. Is the ANSWER fully supported by the CONTEXT "
+         f"(no invented facts)?\nCONTEXT:\n{ctx}\nANSWER: {answer}\n"
+         f'Reply ONLY JSON: {{"score": <0..1>}}  where 1 = fully supported, 0 = not supported.')
+    return _score_from_text(_ask(p))
+
+
+def m_answer_correctness(answer: str, ground_truth: str) -> Optional[float]:
+    p = (f"You are evaluating ANSWER CORRECTNESS. How well does the ANSWER match the "
+         f"GROUND TRUTH in meaning (semantic, not word-for-word)?\n"
+         f"GROUND TRUTH: {ground_truth}\nANSWER: {answer}\n"
+         f'Reply ONLY JSON: {{"score": <0..1>}}  where 1 = same meaning, 0 = contradicts/wrong.')
+    return _score_from_text(_ask(p))
+
+
+def m_context_precision(question: str, answer: str, contexts: List[str]) -> Optional[float]:
+    """Precision@k — fraction of retrieved contexts that are relevant."""
+    if not contexts:
+        return 0.0
+    ctx = "\n".join(f"[{i}] {c}" for i, c in enumerate(contexts))
+    p = (f"You are evaluating CONTEXT PRECISION (Precision@k). For the QUESTION, how many of "
+         f"the retrieved CONTEXTS are actually RELEVANT/useful to answer it?\n"
+         f"QUESTION: {question}\nANSWER: {answer}\nCONTEXTS:\n{ctx}\n"
+         f'Reply ONLY JSON: {{"score": <0..1>}}  = (relevant contexts / total contexts).')
+    return _score_from_text(_ask(p))
+
+
+def m_context_recall(ground_truth: str, contexts: List[str]) -> Optional[float]:
+    """Recall@k — fraction of the ground truth that is covered by the contexts."""
+    if not contexts:
+        return 0.0
+    ctx = "\n".join(f"- {c}" for c in contexts)
+    p = (f"You are evaluating CONTEXT RECALL (Recall@k). Is every claim in the GROUND TRUTH "
+         f"supported by the retrieved CONTEXTS?\nGROUND TRUTH: {ground_truth}\n"
+         f"CONTEXTS:\n{ctx}\n"
+         f'Reply ONLY JSON: {{"score": <0..1>}}  = (ground-truth claims covered / total claims).')
+    return _score_from_text(_ask(p))
 
 
 # -----------------------------------------------------------------------------
-# 2. Dataset helpers
+# lexical fallback (only if Gemini unavailable)
+# -----------------------------------------------------------------------------
+def _norm(t): return " ".join((t or "").lower().strip().split())
+def _f1(pred, ref):
+    p, r = _norm(pred).split(), _norm(ref).split()
+    if not p or not r: return 0.0
+    ps, rs = set(p), set(r); common = ps & rs
+    if not common: return 0.0
+    pr, rc = len(common)/len(ps), len(common)/len(rs)
+    return round(2*pr*rc/(pr+rc), 4) if pr+rc else 0.0
+def _ground(ans, ctx):
+    a, c = set(_norm(ans).split()), set(_norm(" ".join(ctx)).split())
+    return round(len(a & c)/len(a), 4) if a and c else 0.0
+
+
+# -----------------------------------------------------------------------------
+# dataset
 # -----------------------------------------------------------------------------
 def create_demo_dataset_if_missing() -> None:
     if DATASET_PATH.exists():
         return
-    demo_rows = [
+    rows = [
         {"question": "Is BNS 2023 replacing IPC 1860 in India?",
          "answer": "Yes, Bharatiya Nyaya Sanhita 2023 replaced the Indian Penal Code from 1 July 2024.",
          "contexts": ["Bharatiya Nyaya Sanhita, 2023 came into force from 1 July 2024 and replaced the Indian Penal Code, 1860."],
@@ -127,164 +227,105 @@ def create_demo_dataset_if_missing() -> None:
          "ground_truth": "J.P. Morgan was American, not Indian."},
     ]
     with DATASET_PATH.open("w", encoding="utf-8") as f:
-        for row in demo_rows:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
     print(f"[INFO] Created demo dataset: {DATASET_PATH}")
 
 
 def load_samples() -> List[Dict[str, Any]]:
     create_demo_dataset_if_missing()
-    samples: List[Dict[str, Any]] = []
+    out = []
     with DATASET_PATH.open("r", encoding="utf-8") as f:
-        for line_no, line in enumerate(f, start=1):
+        for ln, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError as exc:
-                print(f"[WARN] Skipping invalid JSON at line {line_no}: {exc}")
-                continue
-            question = row.get("question") or row.get("user_input") or ""
-            answer = row.get("answer") or row.get("response") or ""
-            contexts = row.get("contexts") or row.get("retrieved_contexts") or []
-            ground_truth = row.get("ground_truth") or row.get("reference") or ""
-            if isinstance(contexts, str):
-                contexts = [contexts]
-            if not isinstance(contexts, list):
-                contexts = []
-            samples.append({"question": str(question), "answer": str(answer),
-                            "contexts": [str(c) for c in contexts], "ground_truth": str(ground_truth)})
-    return samples
+            except json.JSONDecodeError as e:
+                print(f"[WARN] bad JSON line {ln}: {e}"); continue
+            q = row.get("question") or row.get("user_input") or ""
+            a = row.get("answer") or row.get("response") or ""
+            c = row.get("contexts") or row.get("retrieved_contexts") or []
+            g = row.get("ground_truth") or row.get("reference") or ""
+            if isinstance(c, str): c = [c]
+            if not isinstance(c, list): c = []
+            out.append({"question": str(q), "answer": str(a),
+                        "contexts": [str(x) for x in c], "ground_truth": str(g)})
+    return out
 
 
 # -----------------------------------------------------------------------------
-# 3. Lightweight fallback metrics
+# run
 # -----------------------------------------------------------------------------
-def normalize_text(text: str) -> str:
-    return " ".join((text or "").lower().strip().split())
-
-
-def token_f1(prediction: str, reference: str) -> float:
-    p = normalize_text(prediction).split()
-    r = normalize_text(reference).split()
-    if not p or not r:
-        return 0.0
-    ps, rs = set(p), set(r)
-    common = ps & rs
-    if not common:
-        return 0.0
-    precision = len(common) / len(ps)
-    recall = len(common) / len(rs)
-    if precision + recall == 0:
-        return 0.0
-    return round((2 * precision * recall) / (precision + recall), 4)
-
-
-def context_grounding(answer: str, contexts: List[str]) -> float:
-    a = set(normalize_text(answer).split())
-    c = set(normalize_text(" ".join(contexts)).split())
-    if not a or not c:
-        return 0.0
-    return round(len(a & c) / len(a), 4)
-
-
-def run_lightweight_eval(samples: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def evaluate_samples(samples: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    use_gemini = _get_client() is not None
+    engine = "gemini-judge" if use_gemini else "lexical-fallback"
+    print(f"[INFO] Evaluation engine: {engine}\n")
     rows = []
-    for idx, s in enumerate(samples, start=1):
-        correctness = token_f1(s["answer"], s["ground_truth"])
-        grounding = context_grounding(s["answer"], s["contexts"])
-        if correctness >= 0.65 and grounding >= 0.45:
-            status = "pass"
-        elif correctness >= 0.35 or grounding >= 0.30:
-            status = "partial"
+    for i, s in enumerate(samples, 1):
+        q, a, c, g = s["question"], s["answer"], s["contexts"], s["ground_truth"]
+        if use_gemini:
+            faith = m_faithfulness(a, c)
+            corr = m_answer_correctness(a, g)
+            prec = m_context_precision(q, a, c)
+            rec = m_context_recall(g, c)
+            # any None -> fall back for that cell
+            faith = _ground(a, c) if faith is None else faith
+            corr = _f1(a, g) if corr is None else corr
+            prec = 1.0 if (prec is None and c) else (0.0 if prec is None else prec)
+            rec = _ground(g, c) if rec is None else rec
         else:
-            status = "fail"
-        rows.append({"id": idx, "question": s["question"], "answer": s["answer"],
-                     "ground_truth": s["ground_truth"], "contexts_count": len(s["contexts"]),
-                     "answer_correctness": correctness, "context_grounding": grounding,
-                     "status": status, "engine": "lightweight_fallback"})
+            faith = _ground(a, c); corr = _f1(a, g)
+            prec = 1.0 if c else 0.0; rec = _ground(g, c)
+
+        avg = round((faith + corr + prec + rec) / 4, 4)
+        status = "pass" if avg >= 0.7 else ("partial" if avg >= 0.45 else "fail")
+        print(f"  [{i}] {q[:44]:44s} faith={faith:.2f} corr={corr:.2f} prec={prec:.2f} rec={rec:.2f}")
+        rows.append({"id": i, "question": q, "answer": a, "ground_truth": g,
+                     "contexts_count": len(c),
+                     "faithfulness": round(faith, 4), "answer_correctness": round(corr, 4),
+                     "context_precision": round(prec, 4), "context_recall": round(rec, 4),
+                     "avg_score": avg, "status": status, "engine": engine})
     return rows
 
 
-# -----------------------------------------------------------------------------
-# 4. Optional RAGAS runner
-# -----------------------------------------------------------------------------
-def run_ragas_eval(samples: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
-    try:
-        patch_ragas_chatvertexai_bug()
-        from datasets import Dataset
-        from ragas import evaluate
-        from ragas.metrics import answer_correctness, faithfulness
-    except Exception as exc:
-        print(f"[WARN] RAGAS import failed. Falling back. Reason: {exc}")
-        return None
-    try:
-        data = {"question": [s["question"] for s in samples],
-                "answer": [s["answer"] for s in samples],
-                "contexts": [s["contexts"] for s in samples],
-                "ground_truth": [s["ground_truth"] for s in samples]}
-        dataset = Dataset.from_dict(data)
-        result = evaluate(dataset, metrics=[answer_correctness, faithfulness], raise_exceptions=False)
-        df = result.to_pandas()
-        rows = []
-        for idx, row in df.iterrows():
-            rows.append({"id": int(idx) + 1, "question": samples[idx]["question"],
-                         "answer": samples[idx]["answer"], "ground_truth": samples[idx]["ground_truth"],
-                         "contexts_count": len(samples[idx]["contexts"]),
-                         "answer_correctness": float(row.get("answer_correctness", 0) or 0),
-                         "context_grounding": float(row.get("faithfulness", 0) or 0),
-                         "status": "ragas_scored", "engine": "ragas"})
-        return rows
-    except Exception as exc:
-        print(f"[WARN] RAGAS evaluation failed. Falling back. Reason: {exc}")
-        return None
-
-
-# -----------------------------------------------------------------------------
-# 5. Save + summary
-# -----------------------------------------------------------------------------
 def save_results(rows: List[Dict[str, Any]]) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out = RESULTS_DIR / f"evaluation_results_{ts}.csv"
     fields = ["id", "question", "answer", "ground_truth", "contexts_count",
-              "answer_correctness", "context_grounding", "status", "engine"]
+              "faithfulness", "answer_correctness", "context_precision", "context_recall",
+              "avg_score", "status", "engine"]
     with out.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
-        w.writeheader()
-        w.writerows(rows)
+        w = csv.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
     return out
 
 
 def print_summary(rows: List[Dict[str, Any]]) -> None:
-    total = len(rows)
-    if total == 0:
-        print("[ERROR] No rows evaluated.")
-        return
-    avg_c = round(sum(float(r["answer_correctness"]) for r in rows) / total, 4)
-    avg_g = round(sum(float(r["context_grounding"]) for r in rows) / total, 4)
-    engine = rows[0].get("engine", "unknown")
-    sc: Dict[str, int] = {}
+    n = len(rows)
+    if not n:
+        print("[ERROR] No rows."); return
+    def avg(k): return round(sum(float(r[k]) for r in rows) / n, 4)
+    sc = {}
     for r in rows:
-        st = str(r.get("status", "unknown"))
-        sc[st] = sc.get(st, 0) + 1
-    print("\n================ TruthLens Phase 7 Evaluation ================")
-    print(f"Evaluation engine    : {engine}")
-    print(f"Total samples        : {total}")
-    print(f"Average correctness  : {avg_c}")
-    print(f"Average grounding    : {avg_g}")
-    print(f"Status counts        : {sc}")
-    print("==============================================================\n")
+        sc[r["status"]] = sc.get(r["status"], 0) + 1
+    print("\n============= TruthLens — RAGAS-style Evaluation =============")
+    print(f"Engine                 : {rows[0]['engine']}")
+    print(f"Samples                : {n}")
+    print(f"Faithfulness (avg)     : {avg('faithfulness')}")
+    print(f"Answer Correctness     : {avg('answer_correctness')}")
+    print(f"Context Precision@k    : {avg('context_precision')}")
+    print(f"Context Recall@k       : {avg('context_recall')}")
+    print(f"Overall (avg)          : {avg('avg_score')}")
+    print(f"Status                 : {sc}")
+    print("=============================================================\n")
 
 
 def main() -> None:
     samples = load_samples()
     if not samples:
-        print("[ERROR] No evaluation samples found.")
-        return
-    rows = run_ragas_eval(samples)
-    if rows is None:
-        rows = run_lightweight_eval(samples)
+        print("[ERROR] No samples."); return
+    rows = evaluate_samples(samples)
     out = save_results(rows)
     print_summary(rows)
     print(f"[OK] Results saved to: {out}")

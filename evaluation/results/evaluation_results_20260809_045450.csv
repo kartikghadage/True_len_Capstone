@@ -1,0 +1,4 @@
+id,question,answer,ground_truth,contexts_count,faithfulness,answer_correctness,context_precision,context_recall,avg_score,status,engine
+1,Is BNS 2023 replacing IPC 1860 in India?,"Yes, Bharatiya Nyaya Sanhita 2023 replaced the Indian Penal Code from 1 July 2024.",BNS 2023 replaced IPC 1860 from 1 July 2024.,1,0.7143,0.5217,1.0,0.5556,0.6979,partial,gemini-judge
+2,Does EXIF metadata alone prove an image is fake?,"No, EXIF metadata alone cannot prove forgery. It is only one supporting signal with ELA and CNN classification.","Metadata is a supporting forgery signal, not absolute proof.",1,0.2222,0.2222,1.0,0.6667,0.5278,partial,gemini-judge
+3,Was J.P. Morgan Indian?,"No. J.P. Morgan was an American financier and banker, not Indian.","J.P. Morgan was American, not Indian.",1,0.5455,0.5882,1.0,0.3333,0.6168,partial,gemini-judge

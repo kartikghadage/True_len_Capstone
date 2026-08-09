@@ -1,5 +1,4 @@
 """
-TruthLens - SQLite persistence (Phase 7) + chat-history features:
 smart titles · rename · delete · verdict filter · search.
 """
 import os, sqlite3, json, time
